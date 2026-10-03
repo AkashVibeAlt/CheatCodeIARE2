@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Under Maintenance | CheatCodeIARE</title>
+    <link rel="icon" type="image/png" href="/images/CheatCodeIARE.png">
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            --bg-color: #050508;
+            --card-bg: rgba(12, 13, 20, 0.85);
+            --yellow-tape: #ffe600;
+            --yellow-glow: #ffea00;
+            --black-stripe: #111111;
+            --cyan-neon: #00f3ff;
+            --pink-neon: #ff0055;
+            --whatsapp-green: #25d366;
+            --linkedin-blue: #0a66c2;
+            --text-main: #e2e8f0;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Rajdhani', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden;
+            position: relative;
+            padding: 40px 15px;
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(0, 243, 255, 0.05) 0%, transparent 60%),
+                linear-gradient(rgba(255, 230, 0, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 230, 0, 0.03) 1px, transparent 1px);
+            background-size: 100% 100%, 40px 40px, 40px 40px;
+        }
+
+        /* CRT Scanlines Effect */
+        body::before {
+            content: " ";
+            display: block;
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.35) 50%);
+            background-size: 100% 4px;
+            z-index: 100;
+            pointer-events: none;
+            opacity: 0.7;
+        }
+
+        /* Hazard Warning Tapes (Top & Bottom marquee) */
+        .tape-wrapper {
+            position: fixed;
+            width: 120%;
+            left: -10%;
+            z-index: 90;
+            background: var(--yellow-tape);
+            color: var(--black-stripe);
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+            padding: 10px 0;
+            box-shadow: 0 0 20px rgba(255, 230, 0, 0.4);
+            overflow: hidden;
+            white-space: nowrap;
+            user-select: none;
+            border-top: 3px solid #000;
+            border-bottom: 3px solid #000;
+        }
+
+        .tape-top {
+            top: 25px;
+            transform: rotate(-2deg);
+        }
+
+        .tape-bottom {
+            bottom: 25px;
+            transform: rotate(2deg);
+        }
+
+        .tape-content {
+            display: inline-block;
+            animation: marquee 25s linear infinite;
+        }
+
+        .tape-text {
+            display: inline-flex;
+            align-items: center;
+            gap: 20px;
+            margin-right: 20px;
+        }
+
+        .tape-text span.hazard-symbol {
+            font-size: 1.2rem;
+        }
+
+        @keyframes marquee {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        /* Main Container */
+        .cyber-card {
+            background: var(--card-bg);
+            border: 2px solid var(--yellow-glow);
+            border-radius: 4px;
+            max-width: 680px;
+            width: 100%;
+            padding: 40px 30px;
+            position: relative;
+            z-index: 10;
+            box-shadow: 0 0 35px rgba(255, 230, 0, 0.15), inset 0 0 15px rgba(255, 230, 0, 0.05);
+            backdrop-filter: blur(12px);
+            clip-path: polygon(
+                0 0,
+                calc(100% - 25px) 0,
+                100% 25px,
+                100% 100%,
+                25px 100%,
+                0 calc(100% - 25px)
+            );
+        }
+
+        /* Cyber Corner Accents */
+        .cyber-card::after {
+            content: '';
+            position: absolute;
+            top: 0; right: 0;
+            width: 25px; height: 25px;
+            background: var(--yellow-glow);
+            clip-path: polygon(100% 0, 0 0, 100% 100%);
+        }
+
+        /* Status Badge */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255, 230, 0, 0.1);
+            border: 1px solid var(--yellow-glow);
+            color: var(--yellow-glow);
+            padding: 6px 16px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.85rem;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 25px;
+            box-shadow: 0 0 10px rgba(255, 230, 0, 0.2);
+        }
+
+        .pulse-dot {
+            width: 10px;
+            height: 10px;
+            background-color: var(--yellow-glow);
+            border-radius: 50%;
+            box-shadow: 0 0 10px var(--yellow-glow);
+            animation: pulse 1.5s infinite alternate;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.3; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1.2); }
+        }
+
+        /* Main Heading */
+        .title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(1.8rem, 4vw, 2.6rem);
+            font-weight: 900;
+            color: #ffffff;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            line-height: 1.2;
+            margin-bottom: 15px;
+            text-shadow: 0 0 15px rgba(255, 230, 0, 0.5);
+        }
+
+        .title span.highlight {
+            color: var(--yellow-glow);
+            display: block;
+        }
+
+        /* Subtitle */
+        .subtitle {
+            font-size: 1.15rem;
+            color: var(--text-muted);
+            margin-bottom: 30px;
+            line-height: 1.6;
+            font-weight: 500;
+        }
+
+        /* Terminal Console Box */
+        .terminal-box {
+            background: rgba(0, 0, 0, 0.6);
+            border-left: 3px solid var(--cyan-neon);
+            padding: 16px 20px;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 0.9rem;
+            color: #00f3ff;
+            margin-bottom: 35px;
+            border-radius: 0 4px 4px 0;
+            box-shadow: inset 0 0 10px rgba(0, 243, 255, 0.05);
+        }
+
+        .terminal-line {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+
+        .terminal-line:last-child {
+            margin-bottom: 0;
+        }
+
+        .terminal-prompt {
+            color: var(--yellow-glow);
+        }
+
+        .blinking-cursor {
+            display: inline-block;
+            width: 8px;
+            height: 15px;
+            background: var(--cyan-neon);
+            margin-left: 5px;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* Action Buttons Section */
+        .action-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            width: 100%;
+        }
+
+        .action-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .action-card:hover {
+            border-color: rgba(255, 255, 255, 0.25);
+            background: rgba(255, 255, 255, 0.05);
+            transform: translateY(-2px);
+        }
+
+        .support-card {
+            border-color: rgba(255, 0, 85, 0.35);
+            background: rgba(255, 0, 85, 0.03);
+            align-items: center;
+        }
+
+        .support-card:hover {
+            border-color: var(--pink-neon);
+            box-shadow: 0 0 20px rgba(255, 0, 85, 0.25);
+        }
+
+        .qr-container {
+            margin-top: 5px;
+            padding: 10px;
+            background: #ffffff;
+            border: 2px solid var(--yellow-glow);
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(255, 230, 0, 0.4);
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .qr-image {
+            max-width: 200px;
+            width: 100%;
+            height: auto;
+            display: block;
+            border-radius: 4px;
+        }
+
+        .action-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .cyber-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 14px 24px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.95rem;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-decoration: none;
+            text-transform: uppercase;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            border-radius: 3px;
+        }
+
+        /* WhatsApp Button Style */
+        .btn-whatsapp {
+            background: var(--whatsapp-green);
+            color: #000;
+            box-shadow: 0 0 15px rgba(37, 211, 102, 0.4);
+        }
+
+        .btn-whatsapp:hover {
+            background: #20bd5a;
+            box-shadow: 0 0 25px rgba(37, 211, 102, 0.7);
+            transform: scale(1.01);
+        }
+
+        /* LinkedIn Button Style */
+        .btn-linkedin {
+            background: var(--linkedin-blue);
+            color: #fff;
+            box-shadow: 0 0 15px rgba(10, 102, 194, 0.4);
+        }
+
+        .btn-linkedin:hover {
+            background: #08529c;
+            box-shadow: 0 0 25px rgba(10, 102, 194, 0.7);
+            transform: scale(1.01);
+        }
+
+        .btn-icon {
+            font-size: 1.2rem;
+        }
+
+        /* Footer Info */
+        .footer-note {
+            margin-top: 30px;
+            text-align: center;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        /* Mobile responsiveness adjustments */
+        @media (max-width: 600px) {
+            body {
+                padding: 70px 12px;
+            }
+
+            .tape-wrapper {
+                font-size: 0.75rem;
+                padding: 8px 0;
+            }
+
+            .tape-top {
+                top: 10px;
+            }
+
+            .tape-bottom {
+                bottom: 10px;
+            }
+
+            .cyber-card {
+                padding: 28px 18px;
+            }
+
+            .title {
+                font-size: 1.5rem;
+            }
+
+            .subtitle {
+                font-size: 1rem;
+            }
+
+            .cyber-btn {
+                padding: 12px 16px;
+                font-size: 0.85rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Hazard Tape Banner -->
+    <div class="tape-wrapper tape-top">
+        <div class="tape-content">
+            <div class="tape-text">
+                <span class="hazard-symbol">⚠️</span> WARNING // SYSTEM UNDER MAINTENANCE // ACCESS RESTRICTED // DO NOT CROSS
+                <span class="hazard-symbol">⚠️</span> WARNING // SYSTEM UNDER MAINTENANCE // ACCESS RESTRICTED // DO NOT CROSS
+                <span class="hazard-symbol">⚠️</span> WARNING // SYSTEM UNDER MAINTENANCE // ACCESS RESTRICTED // DO NOT CROSS
+                <span class="hazard-symbol">⚠️</span> WARNING // SYSTEM UNDER MAINTENANCE // ACCESS RESTRICTED // DO NOT CROSS
+            </div>
+            <div class="tape-text">
+                <span class="hazard-symbol">⚠️</span> WARNING // SYSTEM UNDER MAINTENANCE // ACCESS RESTRICTED // DO NOT CROSS
+                <span class="hazard-symbol">⚠️</span> WARNING // SYSTEM UNDER MAINTENANCE // ACCESS RESTRICTED // DO NOT CROSS
+                <span class="hazard-symbol">⚠️</span> WARNING // SYSTEM UNDER MAINTENANCE // ACCESS RESTRICTED // DO NOT CROSS
+                <span class="hazard-symbol">⚠️</span> WARNING // SYSTEM UNDER MAINTENANCE // ACCESS RESTRICTED // DO NOT CROSS
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Cyberpunk Maintenance Card -->
+    <main class="cyber-card">
+        
+        <!-- Status Indicator -->
+        <div class="status-badge">
+            <span class="pulse-dot"></span>
+            <span>STATUS: 503 // MAINTENANCE MODE ACTIVE</span>
+        </div>
+
+        <!-- Main Title -->
+        <h1 class="title">
+            THIS WEBSITE IS
+            <span class="highlight">UNDER MAINTENANCE</span>
+        </h1>
+
+        <p class="subtitle">
+            We are upgrading our core systems to deliver a superior experience. Access to all web services is temporarily suspended while scheduled maintenance is underway.
+        </p>
+
+        <!-- Cyber Terminal Box -->
+        <div class="terminal-box">
+            <div class="terminal-line">
+                <span class="terminal-prompt">&gt;</span> SYSTEM STATUS: UPGRADING CORE ENGINES...
+            </div>
+            <div class="terminal-line">
+                <span class="terminal-prompt">&gt;</span> ROUTE FIREWALL: ALL ROUTES LOCKED
+            </div>
+            <div class="terminal-line">
+                <span class="terminal-prompt">&gt;</span> ESTIMATED UPTIME: STAND BY FOR UPDATES<span class="blinking-cursor"></span>
+            </div>
+        </div>
+
+        <!-- Action Cards -->
+        <div class="action-section">
+            
+            <!-- Support Us / Donate QR Card -->
+            <div class="action-card support-card">
+                <div class="action-title">
+                    <i class="fa-solid fa-heart" style="color: var(--pink-neon);"></i>
+                    SUPPORT US
+                </div>
+                <p style="font-size: 0.95rem; color: var(--text-muted); text-align: center;">
+                    Scan the QR code below to support our platform maintenance and server costs!
+                </p>
+                <div class="qr-container">
+                    <img src="/images/Donate.png" alt="Support Us QR Code" class="qr-image">
+                </div>
+            </div>
+
+            <!-- WhatsApp Group Card -->
+            <div class="action-card">
+                <div class="action-title">
+                    <i class="fa-brands fa-whatsapp" style="color: var(--whatsapp-green);"></i>
+                    GET REAL-TIME ANNOUNCEMENTS
+                </div>
+                <p style="font-size: 0.95rem; color: var(--text-muted);">
+                    Join our official WhatsApp group for instant status updates and maintenance announcements.
+                </p>
+                <a href="https://chat.whatsapp.com/LQp61xF5cyE8ymR6o90ucW" target="_blank" rel="noopener noreferrer" class="cyber-btn btn-whatsapp">
+                    <i class="fa-brands fa-whatsapp btn-icon"></i>
+                    JOIN OUR WHATSAPP GROUP
+                </a>
+            </div>
+
+            <!-- LinkedIn Founder Card -->
+            <div class="action-card">
+                <div class="action-title">
+                    <i class="fa-brands fa-linkedin" style="color: var(--linkedin-blue);"></i>
+                    DIRECT CONTACT
+                </div>
+                <p style="font-size: 0.95rem; color: var(--text-muted);">
+                    Need urgent assistance or have questions? Connect directly with our founder on LinkedIn.
+                </p>
+                <a href="https://www.linkedin.com/in/akash-bojja/" target="_blank" rel="noopener noreferrer" class="cyber-btn btn-linkedin">
+                    <i class="fa-brands fa-linkedin btn-icon"></i>
+                    TALK TO FOUNDER ON LINKEDIN
+                </a>
+            </div>
+
+        </div>
+
+        <!-- Footer Info -->
+        <div class="footer-note">
+            // CHEATCODE IARE CORE SECURITY PROTOCOL // SYS_VER_2.5
+        </div>
+
+    </main>
+
+    <!-- Bottom Hazard Tape Banner -->
+    <div class="tape-wrapper tape-bottom">
+        <div class="tape-content">
+            <div class="tape-text">
+                <span class="hazard-symbol">⚠️</span> CAUTION // SYSTEM UPGRADE IN PROGRESS // AUTHORIZED ACCESS ONLY
+                <span class="hazard-symbol">⚠️</span> CAUTION // SYSTEM UPGRADE IN PROGRESS // AUTHORIZED ACCESS ONLY
+                <span class="hazard-symbol">⚠️</span> CAUTION // SYSTEM UPGRADE IN PROGRESS // AUTHORIZED ACCESS ONLY
+                <span class="hazard-symbol">⚠️</span> CAUTION // SYSTEM UPGRADE IN PROGRESS // AUTHORIZED ACCESS ONLY
+            </div>
+            <div class="tape-text">
+                <span class="hazard-symbol">⚠️</span> CAUTION // SYSTEM UPGRADE IN PROGRESS // AUTHORIZED ACCESS ONLY
+                <span class="hazard-symbol">⚠️</span> CAUTION // SYSTEM UPGRADE IN PROGRESS // AUTHORIZED ACCESS ONLY
+                <span class="hazard-symbol">⚠️</span> CAUTION // SYSTEM UPGRADE IN PROGRESS // AUTHORIZED ACCESS ONLY
+                <span class="hazard-symbol">⚠️</span> CAUTION // SYSTEM UPGRADE IN PROGRESS // AUTHORIZED ACCESS ONLY
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

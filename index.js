@@ -36,6 +36,35 @@ app.use(express.json());
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
+// ─── Maintenance Mode ─────────────────────────────────────────────────────────
+const MAINTENANCE_MODE = process.env.MAINTENANCE_MODE !== "false";
+const WHATSAPP_GROUP_URL = process.env.WHATSAPP_GROUP_URL || "https://chat.whatsapp.com/";
+const LINKEDIN_PROFILE_URL = process.env.LINKEDIN_PROFILE_URL || "https://www.linkedin.com/";
+
+app.get("/maintenance", (req, res) => {
+    res.render("maintenance", {
+        whatsappUrl: WHATSAPP_GROUP_URL,
+        linkedinUrl: LINKEDIN_PROFILE_URL
+    });
+});
+
+app.use((req, res, next) => {
+    if (MAINTENANCE_MODE) {
+        if (
+            req.path === "/maintenance" ||
+            req.path.startsWith("/styles/") ||
+            req.path.startsWith("/images/") ||
+            req.path.startsWith("/js/") ||
+            req.path.startsWith("/fa/") ||
+            req.path.match(/\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/i)
+        ) {
+            return next();
+        }
+        return res.redirect("/maintenance");
+    }
+    next();
+});
+
 // ─── Static Files ─────────────────────────────────────────────────────────────
 app.use(express.static(path.join(__dirname, "public")));
 app.use('/fa', express.static(path.join(__dirname, 'node_modules/@fortawesome/fontawesome-free')));
