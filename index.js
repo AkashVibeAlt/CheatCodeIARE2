@@ -155,16 +155,20 @@ return (
  * Example:
  *   const result = await generateWithFallback(m => m.generateContent(prompt), true);
  */
-async function generateWithFallback(promptFn, useJsonMode = false) {
+async function generateWithFallback(promptFn, useJsonMode = false, customApiKey = null) {
+    const aiInstance = (customApiKey && String(customApiKey).trim())
+        ? new GoogleGenerativeAI(String(customApiKey).trim())
+        : genAI;
+
     let lastError;
     for (const modelName of MODEL_FALLBACK_CHAIN) {
         try {
-            const model = genAI.getGenerativeModel({
+            const model = aiInstance.getGenerativeModel({
                 model: modelName,
                 generationConfig: useJsonMode ? { responseMimeType: "application/json" } : {},
                 safetySettings: SAFETY_SETTINGS,
             });
-            console.log(`[Gemini] Trying: ${modelName}`);
+            console.log(`[Gemini] Trying: ${modelName}${customApiKey ? " (user custom API key)" : " (default env API key)"}`);
             // Run the actual API call through the queue — max 6 concurrent Gemini requests
             const result = await promptFn(model);
             console.log(`[Gemini] Success: ${modelName}`);
@@ -381,7 +385,7 @@ const isAuthenticated = (req, res, next) => {
 };
 
 // ─── PPT Content Generator (shared helper) ───────────────────────────────────
-async function generatePptContent(problemStatement) {
+async function generatePptContent(problemStatement, userApiKey = null) {
     const prompt = `
     You are an expert academic assistant helping a university student prepare a high-quality AAT (Alternative Assessment Tool) PowerPoint presentation.
 
@@ -429,7 +433,7 @@ async function generatePptContent(problemStatement) {
     - Do NOT repeat the same information across slides.
     `;
 
-    const result = await generateWithFallback(m => m.generateContent(prompt), true);
+    const result = await generateWithFallback(m => m.generateContent(prompt), true, userApiKey);
     let responseText = result.response.text();
 
     if (!responseText) throw new Error("Gemini returned an empty response.");
@@ -685,7 +689,7 @@ const JOB_TTL_SECONDS = 600; // 10 min — auto-cleanup if something crashes
 
 // ─── Generate PPT → Queue-based with Redis ────────────────────────────────────
 app.post("/generate-ppt", isAuthenticated, async (req, res) => {
-    const { department, subject, problemStatement } = req.body;
+    const { department, subject, problemStatement, apiKey } = req.body;
     const userId = req.user.studentId;
 
     try {
@@ -723,6 +727,7 @@ app.post("/generate-ppt", isAuthenticated, async (req, res) => {
             `ppt_form:${userId}`,
             {
                 department, subject, problemStatement,
+                apiKey: (apiKey || "").trim(),
                 userName: req.user.name,
                 studentId: req.user.studentId
             },
@@ -848,7 +853,7 @@ async function runPptJob(userId) {
         }
         await touchPptRunner(userId);
 
-        const content = await generatePptContent(formData.problemStatement);
+        const content = await generatePptContent(formData.problemStatement, formData.apiKey);
         await touchPptRunner(userId);
 
         const result = {

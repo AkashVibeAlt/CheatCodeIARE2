@@ -219,6 +219,205 @@
             color: var(--accent-lime);
             text-shadow: none;
         }
+        /* ── API Key Configuration Section ────────────────────────────────── */
+        .api-section-card {
+            background: rgba(0, 243, 255, 0.03);
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            margin-bottom: 24px;
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.08);
+            transition: all 0.3s ease;
+            text-align: left;
+        }
+
+        .api-section-card:hover {
+            border-color: #00f3ff;
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.15);
+        }
+
+        .api-section-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            color: #00f3ff;
+            margin-bottom: 16px;
+            letter-spacing: 1px;
+        }
+
+        .api-section-header .api-icon {
+            font-size: 1.1rem;
+            color: #ff00ff;
+        }
+
+        .api-badge {
+            margin-left: auto;
+            font-size: 0.68rem;
+            background: rgba(255, 0, 255, 0.15);
+            color: #ff00ff;
+            border: 1px solid #ff00ff;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-family: 'Share Tech Mono', monospace;
+            letter-spacing: 1px;
+        }
+
+        .api-input-wrapper {
+            position: relative;
+            display: flex;
+            align-items: center;
+            width: 100%;
+        }
+
+        .api-input-wrapper input {
+            padding-right: 45px !important;
+        }
+
+        .toggle-key-btn {
+            position: absolute;
+            right: 12px;
+            background: transparent;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            font-size: 1.1rem;
+            padding: 6px;
+            transition: color 0.2s;
+        }
+
+        .toggle-key-btn:hover {
+            color: #00f3ff;
+        }
+
+        .api-instructions-box {
+            background: rgba(0, 0, 0, 0.45);
+            border-left: 3px solid #ff00ff;
+            padding: 14px 16px;
+            border-radius: 0 6px 6px 0;
+            margin-top: 14px;
+        }
+
+        .instruction-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.8rem;
+            color: #fff;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .instruction-title i {
+            color: #00f3ff;
+        }
+
+        .instruction-list {
+            margin-left: 20px;
+            color: #bbb;
+            font-size: 0.82rem;
+            line-height: 1.6;
+            margin-bottom: 14px;
+        }
+
+        .instruction-list strong {
+            color: #fff;
+        }
+
+        .instruction-footer {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .ai-studio-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: rgba(255, 0, 255, 0.15);
+            border: 1px solid #ff00ff;
+            color: #ff00ff;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.78rem;
+            font-weight: 700;
+            padding: 10px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            letter-spacing: 0.8px;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+        }
+
+        .ai-studio-btn:hover {
+            background: #ff00ff;
+            color: #000;
+            box-shadow: 0 0 15px rgba(255, 0, 255, 0.5);
+            transform: translateY(-1px);
+        }
+
+        .api-note-text {
+            font-size: 0.75rem;
+            color: #777;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .api-note-text i {
+            color: #39ff14;
+        }
+
+        /* Light Mode styles for API Section */
+        html[data-theme="light"] .api-section-card {
+            background: rgba(0, 168, 204, 0.05);
+            border-color: rgba(0, 168, 204, 0.3);
+        }
+
+        html[data-theme="light"] .api-section-header {
+            color: var(--accent-cyan);
+        }
+
+        html[data-theme="light"] .api-badge {
+            background: rgba(186, 0, 255, 0.1);
+            color: var(--accent-magenta);
+            border-color: var(--accent-magenta);
+        }
+
+        html[data-theme="light"] .api-instructions-box {
+            background: var(--surface-panel);
+            border-left-color: var(--accent-magenta);
+        }
+
+        html[data-theme="light"] .instruction-title {
+            color: var(--text);
+        }
+
+        html[data-theme="light"] .instruction-list {
+            color: var(--muted-text);
+        }
+
+        html[data-theme="light"] .instruction-list strong {
+            color: var(--text);
+        }
+
+        html[data-theme="light"] .ai-studio-btn {
+            background: rgba(186, 0, 255, 0.1);
+            border-color: var(--accent-magenta);
+            color: var(--accent-magenta);
+        }
+
+        html[data-theme="light"] .ai-studio-btn:hover {
+            background: var(--accent-magenta);
+            color: #ffffff;
+            box-shadow: 0 8px 20px rgba(186, 0, 255, 0.3);
+        }
+
+        html[data-theme="light"] .api-note-text {
+            color: var(--soft-text);
+        }
     </style>
 </head>
 
@@ -262,6 +461,44 @@
                     <label>Problem Statement</label>
                     <textarea name="problemStatement" rows="4" required placeholder="Describe your topic..."></textarea>
                 </div>
+
+                <!-- API Key Section -->
+                <div class="api-section-card">
+                    <div class="api-section-header">
+                        <i class="fa-solid fa-key api-icon"></i>
+                        <span>GEMINI API CONFIGURATION</span>
+                        <span class="api-badge">REQUIRED</span>
+                    </div>
+
+                    <div class="input-group" style="margin-bottom: 10px;">
+                        <label for="apiKey">Paste Your Gemini API Key <span style="color:#ff00ff;">*</span></label>
+                        <div class="api-input-wrapper">
+                            <input type="password" id="apiKey" name="apiKey" required placeholder="Paste your Gemini API key (e.g. AIzaSy...)" autocomplete="off">
+                            <button type="button" class="toggle-key-btn" id="toggleKeyBtn" title="Show/Hide API Key">
+                                <i class="fa-solid fa-eye" id="toggleKeyIcon"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Instructions Box -->
+                    <div class="api-instructions-box">
+                        <div class="instruction-title">
+                            <i class="fa-solid fa-circle-info"></i> How to get your free Gemini API key:
+                        </div>
+                        <ol class="instruction-list">
+                            <li>Open <strong>Google AI Studio</strong> using the button below.</li>
+                            <li>Sign in with your Google Account.</li>
+                            <li>Click on <strong>"Create API key"</strong>.</li>
+                            <li>Copy your API key and paste it in the field above.</li>
+                        </ol>
+                        <div class="instruction-footer">
+                            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" class="ai-studio-btn">
+                                <i class="fa-solid fa-arrow-up-right-from-square"></i> GET GEMINI API KEY FROM GOOGLE AI STUDIO
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
                 <button type="submit" class="generate-btn" id="generateBtn">
                     <i class="fa-solid fa-bolt"></i> GENERATE PPT
                 </button>
@@ -277,6 +514,20 @@
     </div>
 
     <script>
+        document.getElementById('toggleKeyBtn').addEventListener('click', function () {
+            const input = document.getElementById('apiKey');
+            const icon = document.getElementById('toggleKeyIcon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                input.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        });
+
         document.getElementById('pptForm').addEventListener('submit', async function (e) {
         e.preventDefault();
         const btn = document.getElementById('generateBtn');
