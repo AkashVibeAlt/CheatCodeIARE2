@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" type="image/png" href="/images/CheatCodeIARE.png">
+    <link rel="icon" type="image/webp" href="/images/CheatCodeIARE.webp">
     <script>
         (function () {
             const theme = localStorage.getItem('cheatcode-theme');
@@ -247,6 +247,92 @@
         html[data-theme="light"] .retry-btn:hover {
             color: #ffffff;
         }
+        /* Download section styles */
+        .download-container {
+            display: none;
+            flex-direction: column;
+            gap: 14px;
+            align-items: center;
+            margin-top: 24px;
+            width: 100%;
+        }
+
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background: #00f3ff;
+            color: #000;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.9rem;
+            font-weight: 700;
+            padding: 14px 28px;
+            border-radius: 8px;
+            text-decoration: none;
+            letter-spacing: 1px;
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.4);
+            transition: all 0.3s ease;
+            width: 100%;
+            max-width: 340px;
+            box-sizing: border-box;
+        }
+
+        .download-btn:hover {
+            background: #39ff14;
+            color: #000;
+            box-shadow: 0 0 30px rgba(57, 255, 20, 0.6);
+            transform: translateY(-2px);
+        }
+
+        .new-ppt-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: transparent;
+            border: 2px solid #00f3ff;
+            color: #00f3ff;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 0.82rem;
+            font-weight: 600;
+            padding: 10px 24px;
+            border-radius: 6px;
+            text-decoration: none;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            width: 100%;
+            max-width: 340px;
+            box-sizing: border-box;
+        }
+
+        .new-ppt-btn:hover {
+            background: rgba(0, 243, 255, 0.15);
+            color: #fff;
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
+        }
+
+        html[data-theme="light"] .download-btn {
+            background: var(--accent-cyan);
+            color: #ffffff;
+            box-shadow: 0 10px 20px rgba(0, 168, 204, 0.25);
+        }
+
+        html[data-theme="light"] .download-btn:hover {
+            background: #28c711;
+            box-shadow: 0 12px 25px rgba(40, 199, 17, 0.35);
+            color: #ffffff;
+        }
+
+        html[data-theme="light"] .new-ppt-btn {
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+        }
+
+        html[data-theme="light"] .new-ppt-btn:hover {
+            background: rgba(0, 168, 204, 0.1);
+            color: var(--accent-cyan);
+        }
     </style>
 </head>
 <body>
@@ -258,7 +344,7 @@
     <div class="queue-card">
         <div class="queue-icon" id="queueIcon">⏳</div>
         <h1 class="queue-title" id="queueTitle">IN THE QUEUE</h1>
-        <p class="queue-subtitle">
+        <p class="queue-subtitle" id="queueSubtitle">
             Your PPT is being queued for generation.<br>
             Please keep this page open — do not refresh.
         </p>
@@ -277,6 +363,15 @@
             <div class="dot" id="d2"></div>
             <div class="dot" id="d3"></div>
             <div class="dot" id="d4"></div>
+        </div>
+
+        <div class="download-container" id="downloadContainer">
+            <a id="downloadBtn" href="/download-ppt/<%= user.studentId %>" class="download-btn">
+                <i class="fa-solid fa-file-powerpoint"></i> DOWNLOAD PPT (.PPTX)
+            </a>
+            <a href="/ppt" class="new-ppt-btn">
+                <i class="fa-solid fa-plus"></i> GENERATE ANOTHER PPT
+            </a>
         </div>
 
         <div class="error-retry" id="errorRetry">
@@ -365,14 +460,30 @@
                     statusEl.className = "status-value done";
                     statusEl.textContent = "DONE!";
                     icon.textContent = "✅";
-                    title.textContent = "PPT READY";
+                    title.textContent = "YOUR PPT IS READY";
                     posText.style.display = "none";
                     spinner.style.display = "none";
-                    pollNote.textContent = "Redirecting to editor...";
+                    pollNote.textContent = "Your presentation is ready! Starting download...";
+                    pollNote.style.color = "#39ff14";
                     dots.forEach(d => { d.classList.add("active"); d.style.background = "#39ff14"; });
 
-                    // Short delay so user sees the done state, then redirect
-                    setTimeout(() => { window.location.href = `/edit/${userId}`; }, 1200);
+                    const downloadContainer = document.getElementById("downloadContainer");
+                    if (downloadContainer) {
+                        downloadContainer.style.display = "flex";
+                    }
+
+                    const subtitle = document.getElementById("queueSubtitle");
+                    if (subtitle) {
+                        subtitle.innerHTML = "Your PowerPoint presentation has been generated successfully.<br>Click below if download doesn't start automatically.";
+                    }
+
+                    // Trigger automatic download
+                    const a = document.createElement("a");
+                    a.href = `/download-ppt/${userId}`;
+                    a.download = data.fileName || "Presentation.pptx";
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
 
                 } else if (data.status === "error") {
                     clearInterval(dotTimer);

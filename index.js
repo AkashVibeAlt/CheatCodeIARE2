@@ -24,6 +24,47 @@ const redis = new Redis({
 
 const app = express();
 
+// // TEMPORARY RESPONSE SIZE LOGGER
+// app.use((req, res, next) => {
+//     const start = Date.now();
+
+//     const originalWrite = res.write;
+//     const originalEnd = res.end;
+
+//     let responseBytes = 0;
+
+//     res.write = function (chunk, ...args) {
+//         if (chunk) {
+//             responseBytes += Buffer.isBuffer(chunk)
+//                 ? chunk.length
+//                 : Buffer.byteLength(String(chunk));
+//         }
+
+//         return originalWrite.call(this, chunk, ...args);
+//     };
+
+//     res.end = function (chunk, ...args) {
+//         if (chunk) {
+//             responseBytes += Buffer.isBuffer(chunk)
+//                 ? chunk.length
+//                 : Buffer.byteLength(String(chunk));
+//         }
+
+//         const duration = Date.now() - start;
+
+//         console.log(
+//             `[RESPONSE SIZE] ${req.method} ${req.originalUrl} | ` +
+//             `${(responseBytes / 1024).toFixed(2)} KB | ` +
+//             `${duration} ms | ` +
+//             `${res.statusCode}`
+//         );
+
+//         return originalEnd.call(this, chunk, ...args);
+//     };
+
+//     next();
+// });
+
 
 app.use(cookieParser());
 
@@ -56,7 +97,7 @@ app.use((req, res, next) => {
             req.path.startsWith("/images/") ||
             req.path.startsWith("/js/") ||
             req.path.startsWith("/fa/") ||
-            req.path.match(/\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/i)
+            req.path.match(/\.(css|js|png|jpg|jpeg|gif|ico|svg|webp|woff|woff2|ttf|eot)$/i)
         ) {
             return next();
         }
@@ -1151,7 +1192,8 @@ app.get("/queue", isAuthenticated, (req, res) => {
     res.render("queue", { user: req.user });
 });
 
-// ─── Edit Page ────────────────────────────────────────────────────────────────
+/*
+// ─── Edit Page (Commented out for future use) ─────────────────────────────────
 app.get("/edit/:userId", isAuthenticated, async (req, res) => {
 
     const { userId } = req.params;
@@ -1298,11 +1340,12 @@ Rules:
         res.status(500).json({ success: false, error: "Failed to update presentation: " + error.message });
     }
 });
+*/
 
 // ─── Download PPT ─────────────────────────────────────────────────────────────
-app.post("/download-ppt", isAuthenticated, async (req, res) => {
+const handlePptDownload = async (req, res) => {
     try {
-        const userId = String(req.body.userId || req.user.studentId || "").trim();
+        const userId = String(req.params.userId || req.body.userId || req.user.studentId || "").trim();
         if (!userId) return res.status(400).send("Missing userId.");
         if (!isOwnUser(req, userId)) {
             console.warn(`[Auth] PPT download forbidden for ${req.user.studentId} -> ${userId}`);
@@ -1334,10 +1377,12 @@ app.post("/download-ppt", isAuthenticated, async (req, res) => {
     } catch (err) {
         console.error("[Download] Error:", err);
         res.status(500).send("Download failed: " + err.message);
-
     }
+};
 
-});
+app.get("/download-ppt/:userId", isAuthenticated, handlePptDownload);
+app.get("/download-ppt", isAuthenticated, handlePptDownload);
+app.post("/download-ppt", isAuthenticated, handlePptDownload);
 
 // ─── Report Page ──────────────────────────────────────────────────────────────
 app.get("/report", isAuthenticated, (req, res) => {
