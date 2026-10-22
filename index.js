@@ -116,9 +116,9 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 // Fallback chain — tried in order when a model fails (429, 503, quota errors).
 // Best/newest first, most stable last.
 const MODEL_FALLBACK_CHAIN = [
-    "gemini-2.5-flash-lite",         // 2. Best Value (₹8 per 1M tokens) - Highly recommended
-    "gemini-3.1-flash-lite",  // 3. Newest & Fastest (₹20 per 1M tokens) - Backup
-    "gemini-2.5-flash"
+    "gemini-3.8-flash",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite"
 ];
 
 const SAFETY_SETTINGS = [
@@ -1628,7 +1628,7 @@ const markdownToWordXML = (text) => {
     return finalXml;
 };
 
-const batchGenerateAnswers = async (questions) => {
+const batchGenerateAnswers = async (questions, userApiKey = null) => {
     const answers = new Array(10).fill("");
 
     // Helper: send one batch of questions and fill answers array
@@ -1728,7 +1728,7 @@ ${numberedQuestions}
 
         try {
             console.log(`Processing batch ${batchNum} (${batch.length} questions)...`);
-            const result = await generateWithFallback(m => m.generateContent(prompt), false);
+            const result = await generateWithFallback(m => m.generateContent(prompt), false, userApiKey);
             const parsed = parseAiJson(result.response.text());
             parsed.forEach((item) => {
                 // Use item.index (as returned by the model) to find the original question index
@@ -1951,7 +1951,7 @@ async function runReportJob(userId) {
         const questions = [];
         for (let i = 1; i <= 10; i++) questions.push(formData[`question${i}`] || "");
 
-        const rawAnswers = await batchGenerateAnswers(questions);
+        const rawAnswers = await batchGenerateAnswers(questions, formData.apiKey);
         await touchReportRunner(userId);
 
         const docData = {
@@ -2385,7 +2385,7 @@ CRITICAL RULES:
 - Be specific and technical — this is for a university engineering report.
 `;
 
-        const aiResult = await generateWithFallback(m => m.generateContent(prompt), true);
+        const aiResult = await generateWithFallback(m => m.generateContent(prompt), true, form.apiKey);
         const aiData = parseAiJson(aiResult.response.text());
 
         // ── Post-process AI text: ensure numbered items are on their own lines ──────
@@ -2982,7 +2982,7 @@ ABSOLUTE RULES:
 - Write in formal academic English.
 `;
 
-        const aiResult = await generateWithFallback(m => m.generateContent(prompt), true);
+        const aiResult = await generateWithFallback(m => m.generateContent(prompt), true, form.apiKey);
         const aiData = parseAiJson(aiResult.response.text());
 
         function compactLine(text) {
