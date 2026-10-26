@@ -1,6 +1,5 @@
 const dotenv = require("dotenv");
 const express = require("express");
-const { Redis } = require("@upstash/redis");
 const path = require("path");
 const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require("@google/generative-ai");
 const PptxGenJS = require("pptxgenjs");
@@ -9,18 +8,174 @@ const Docxtemplater = require("docxtemplater");
 const fs = require("fs");
 const cookieParser = require("cookie-parser");
 
-
-
 const { inject } = require("@vercel/analytics");
 
 dotenv.config();
 inject();
 
+// ─── In-Memory Queue Store (Upstash Redis Alternative) ────────────────────────
+// When Upstash free-tier quota is exceeded or temporarily disabled, this in-memory
+// store provides an exact drop-in replacement for Redis queues, locks, status, and results.
+class InMemoryRedis {
+    constructor() {
+        if (!globalThis.__inMemoryRedisStore) {
+            globalThis.__inMemoryRedisStore = {
+                data: new Map(),
+                lists: new Map()
+            };
+        }
+        this.data = globalThis.__inMemoryRedisStore.data;
+        this.lists = globalThis.__inMemoryRedisStore.lists;
+    }
 
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN
-});
+    _isExpired(item) {
+        return !!(item && item.expiresAt && Date.now() > item.expiresAt);
+    }
+
+    async get(key) {
+        const item = this.data.get(key);
+        if (!item) return null;
+        if (this._isExpired(item)) {
+            this.data.delete(key);
+            return null;
+        }
+        return item.val;
+    }
+
+    async set(key, value, options = {}) {
+        const existing = this.data.get(key);
+        const exists = existing && !this._isExpired(existing);
+
+        if (options && options.nx && exists) {
+            return null;
+        }
+
+        const expiresAt = (options && options.ex) ? Date.now() + options.ex * 1000 : null;
+        this.data.set(key, { val: typeof value === "string" ? value : JSON.stringify(value), expiresAt });
+        return "OK";
+    }
+
+    async del(...keys) {
+        let count = 0;
+        for (const k of keys.flat()) {
+            if (this.data.delete(k)) count++;
+            if (this.lists.delete(k)) count++;
+        }
+        return count;
+    }
+
+    async incr(key) {
+        const curr = await this.get(key);
+        const num = (parseInt(curr, 10) || 0) + 1;
+        await this.set(key, String(num));
+        return num;
+    }
+
+    async decr(key) {
+        const curr = await this.get(key);
+        const num = (parseInt(curr, 10) || 0) - 1;
+        await this.set(key, String(num));
+        return num;
+    }
+
+    _getList(key) {
+        if (!this.lists.has(key)) {
+            this.lists.set(key, []);
+        }
+        return this.lists.get(key);
+    }
+
+    async rpush(key, ...values) {
+        const list = this._getList(key);
+        list.push(...values.flat().map(String));
+        return list.length;
+    }
+
+    async lpush(key, ...values) {
+        const list = this._getList(key);
+        list.unshift(...values.flat().map(String));
+        return list.length;
+    }
+
+    async lpop(key) {
+        const list = this._getList(key);
+        if (list.length === 0) return null;
+        return list.shift();
+    }
+
+    async lrange(key, start, stop) {
+        const list = this._getList(key);
+        const len = list.length;
+        if (len === 0) return [];
+        let s = start < 0 ? Math.max(0, len + start) : start;
+        let e = stop < 0 ? len + stop : stop;
+        if (s > e || s >= len) return [];
+        return list.slice(s, e + 1);
+    }
+
+    async lpos(key, element) {
+        const list = this._getList(key);
+        const idx = list.indexOf(String(element));
+        return idx === -1 ? null : idx;
+    }
+
+    async lrem(key, count, element) {
+        const list = this._getList(key);
+        const el = String(element);
+        let removed = 0;
+        if (count === 0) {
+            let i = 0;
+            while (i < list.length) {
+                if (list[i] === el) {
+                    list.splice(i, 1);
+                    removed++;
+                } else {
+                    i++;
+                }
+            }
+        } else if (count > 0) {
+            for (let i = 0; i < list.length && removed < count;) {
+                if (list[i] === el) {
+                    list.splice(i, 1);
+                    removed++;
+                } else {
+                    i++;
+                }
+            }
+        } else {
+            const absCount = Math.abs(count);
+            for (let i = list.length - 1; i >= 0 && removed < absCount; i--) {
+                if (list[i] === el) {
+                    list.splice(i, 1);
+                    removed++;
+                }
+            }
+        }
+        return removed;
+    }
+
+    async llen(key) {
+        return this._getList(key).length;
+    }
+}
+
+// ─── Redis Initialization ─────────────────────────────────────────────────────
+// Upstash Redis is temporarily disabled to prevent free-tier limits from blocking requests.
+// Set ENABLE_UPSTASH_REDIS="true" in environment variables to re-enable Upstash.
+const ENABLE_UPSTASH_REDIS = process.env.ENABLE_UPSTASH_REDIS === "true";
+
+let redis;
+if (ENABLE_UPSTASH_REDIS && process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    const { Redis } = require("@upstash/redis");
+    redis = new Redis({
+        url: process.env.UPSTASH_REDIS_REST_URL,
+        token: process.env.UPSTASH_REDIS_REST_TOKEN
+    });
+    console.log("[Store] Upstash Redis enabled.");
+} else {
+    redis = new InMemoryRedis();
+    console.log("[Store] Upstash Redis disabled. Using In-Memory queue store.");
+}
 
 const app = express();
 
@@ -116,9 +271,9 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 // Fallback chain — tried in order when a model fails (429, 503, quota errors).
 // Best/newest first, most stable last.
 const MODEL_FALLBACK_CHAIN = [
-    "gemini-3.8-flash",
-    "gemini-3.6-flash",
-    "gemini-3.5-flash-lite"
+    "gemini-3.5-flash-lite",   // Fallback: lightweight model
+    "gemini-3.8-flash",       // Primary: latest stable Flash
+    "gemini-3.6-flash"       // Fallback: supported Flash model
 ];
 
 const SAFETY_SETTINGS = [
@@ -643,7 +798,7 @@ app.get("/ppt", isAuthenticated, (req, res) => {
 });
 
 // ─── Redis Queue Constants ────────────────────────────────────────────────────
-const MAX_ACTIVE_JOBS = 4;
+const MAX_ACTIVE_JOBS = 999;
 const EFFECTIVE_JOB_TTL_SECONDS = 60 * 60;
 const PPT_RUNNER_STALE_MS = 90 * 1000;
 const PPT_RUNNER_LOCK_TTL = 120;
@@ -693,36 +848,6 @@ app.post("/generate-ppt", isAuthenticated, async (req, res) => {
     const userId = req.user.studentId;
 
     try {
-        // Check if user already has a job running or waiting
-        const existing = await getRedisJson(`ppt_result:${userId}`);
-        if (existing) {
-            if (existing.status === "waiting" || existing.status === "generating") {
-                return res.json({ queued: true, position: existing.position || 0 });
-            }
-        }
-
-        const existingQueuePos = await redis.lpos("ppt_queue", userId);
-        if (existingQueuePos !== null) {
-            await setRedisJson(
-                `ppt_result:${userId}`,
-                { status: "waiting", position: existingQueuePos + 1 },
-                EFFECTIVE_JOB_TTL_SECONDS
-            );
-            return res.json({ queued: true, position: existingQueuePos + 1 });
-        }
-
-        const existingProcessingPos = await redis.lpos("ppt_processing", userId);
-        if (existingProcessingPos !== null) {
-            await ensurePptWorkerRunning(userId);
-            await setRedisJson(
-                `ppt_result:${userId}`,
-                { status: "generating", startedAt: Date.now() },
-                EFFECTIVE_JOB_TTL_SECONDS
-            );
-            return res.json({ queued: true, processing: true });
-        }
-
-        // Save form data + user identity to Redis (session not reliable across Vercel instances)
         await setRedisJson(
             `ppt_form:${userId}`,
             {
@@ -734,34 +859,21 @@ app.post("/generate-ppt", isAuthenticated, async (req, res) => {
             EFFECTIVE_JOB_TTL_SECONDS
         );
 
-        // Remove user from queue if already in it (re-submit scenario)
-        await redis.lrem("ppt_queue", 0, userId);
-
-        // Add to queue
-        await redis.rpush("ppt_queue", userId);
-
-        // Get their position (1-based)
-        const queue = await redis.lrange("ppt_queue", 0, -1);
-        const position = queue.indexOf(userId) + 1;
-
-        // Save initial waiting status with TTL
+        // Mark as immediately generating (bypassing waitlist)
         await setRedisJson(
             `ppt_result:${userId}`,
-            { status: "waiting", position },
+            { status: "generating", startedAt: Date.now() },
             EFFECTIVE_JOB_TTL_SECONDS
         );
 
-        console.log(`[Queue] Enqueued PPT for ${userId} at position ${position}`);
+        // Start generation immediately
+        runPptJob(userId).catch(err => console.error(`[PPT] Worker error ${userId}:`, err));
 
-        // Try to start processing immediately before returning on Vercel.
-        await processNextInQueue().catch(err => console.error("[Queue] processNextInQueue error:", err));
-
-        // Return queued status to frontend — frontend will poll /ppt-status/:userId
-        return res.json({ queued: true, position });
+        return res.json({ queued: true, position: 0 });
 
     } catch (error) {
-        console.error("PPT Queue Error:", error);
-        return res.status(500).json({ error: "Failed to queue PPT generation: " + error.message });
+        console.error("PPT Generation Error:", error);
+        return res.status(500).json({ error: "Failed to start PPT generation: " + error.message });
     }
 });
 
@@ -1107,80 +1219,27 @@ app.get("/ppt-status/:userId", isAuthenticated, async (req, res) => {
     }
 
     try {
-        // Throttled recovery — max once per 60s, not on every 3s poll
-        await recoverStuckJobs().catch(console.error);
-        await processNextInQueue().catch(console.error);
-
         const data = await getRedisJson(`ppt_result:${userId}`);
-        if (!data) {
-            const queuePos = await redis.lpos("ppt_queue", userId);
-            const processingPos = await redis.lpos("ppt_processing", userId);
-
-            if (queuePos !== null) {
-                await setRedisJson(
-                    `ppt_result:${userId}`,
-                    { status: "waiting", position: queuePos + 1 },
-                    EFFECTIVE_JOB_TTL_SECONDS
-                );
-                return res.json({ status: "waiting", position: queuePos + 1 });
-            }
-
-            if (processingPos !== null) {
-                await ensurePptWorkerRunning(userId);
+        if (!data || data.status === "waiting") {
+            const formData = await getRedisJson(`ppt_form:${userId}`);
+            if (formData) {
                 await setRedisJson(
                     `ppt_result:${userId}`,
                     { status: "generating", startedAt: Date.now() },
                     EFFECTIVE_JOB_TTL_SECONDS
                 );
+                await ensurePptWorkerRunning(userId);
                 return res.json({ status: "generating" });
             }
-
             return res.json({ status: "not_found" });
         }
 
-        if (data.status === "waiting") {
-            const queuePos = await redis.lpos("ppt_queue", userId);
-            const processingPos = await redis.lpos("ppt_processing", userId);
-
-            if (processingPos !== null) {
-                await ensurePptWorkerRunning(userId);
-                await setRedisJson(
-                    `ppt_result:${userId}`,
-                    { status: "generating", startedAt: data.startedAt || Date.now() },
-                    EFFECTIVE_JOB_TTL_SECONDS
-                );
-                return res.json({ status: "generating" });
-            }
-
-            if (queuePos === null && processingPos === null) {
-                console.warn(`[Status] Re-queueing lost PPT job for ${userId}`);
-                await redis.rpush("ppt_queue", userId);
-                await refreshPptQueuePositions();
-                await processNextInQueue().catch(console.error);
-                const repaired = await getRedisJson(`ppt_result:${userId}`);
-                return res.json(repaired || { status: "waiting", position: 1 });
-            }
-
-            return res.json({
-                ...data,
-                position: queuePos === null ? data.position || 1 : queuePos + 1
-            });
-        }
-
         if (data.status === "generating") {
-            const processingPos = await redis.lpos("ppt_processing", userId);
-            if (processingPos === null) {
-                console.warn(`[Status] Generating PPT missing from processing for ${userId}, forcing recovery`);
-                await recoverStuckJobs().catch(console.error);
-                await processNextInQueue().catch(console.error);
-            } else {
-                await ensurePptWorkerRunning(userId);
-            }
+            await ensurePptWorkerRunning(userId);
+            return res.json({ status: "generating" });
         }
 
         if (data.status === "done") {
-            // Populate session so /edit and /download work on this instance
-            // DO NOT delete ppt_result here — /edit/:userId and /download-ppt still need it
             return res.json({ status: "done" });
         }
 
@@ -1762,7 +1821,7 @@ ${numberedQuestions}
 };
 
 // ─── Report Queue Constants ──────────────────────────────────────────────────
-const MAX_REPORT_JOBS  = 4;
+const MAX_REPORT_JOBS = 999;
 const EFFECTIVE_REPORT_TTL = 60 * 60;
 const REPORT_TTL       = 600; // 10 min
 const REPORT_RUNNER_STALE_MS = 90 * 1000;
@@ -1811,36 +1870,6 @@ app.post("/generate-report", isAuthenticated, async (req, res) => {
     const userId = req.user.studentId;
 
     try {
-        // Don't double-queue if already waiting/generating
-        const existing = await getRedisJson(`report_result:${userId}`);
-        if (existing) {
-            if (existing.status === "waiting" || existing.status === "generating") {
-                return res.json({ queued: true, position: existing.position || 1 });
-            }
-        }
-
-        const existingQueuePos = await redis.lpos("report_queue", userId);
-        if (existingQueuePos !== null) {
-            await setRedisJson(
-                `report_result:${userId}`,
-                { status: "waiting", position: existingQueuePos + 1 },
-                EFFECTIVE_REPORT_TTL
-            );
-            return res.json({ queued: true, position: existingQueuePos + 1 });
-        }
-
-        const existingProcessingPos = await redis.lpos("report_processing", userId);
-        if (existingProcessingPos !== null) {
-            await ensureReportWorkerRunning(userId);
-            await setRedisJson(
-                `report_result:${userId}`,
-                { status: "generating", startedAt: Date.now() },
-                EFFECTIVE_REPORT_TTL
-            );
-            return res.json({ queued: true, processing: true });
-        }
-
-        // Persist entire form to Redis — session unreliable across Vercel instances
         const formData = { ...req.body, authenticatedUser: req.user };
         await setRedisJson(
             `report_form:${userId}`,
@@ -1848,29 +1877,21 @@ app.post("/generate-report", isAuthenticated, async (req, res) => {
             EFFECTIVE_REPORT_TTL
         );
 
-        // Add to queue
-        await redis.lrem("report_queue", 0, userId);
-        await redis.rpush("report_queue", userId);
-
-        const queue    = await redis.lrange("report_queue", 0, -1);
-        const position = queue.indexOf(userId) + 1;
-
+        // Mark as immediately generating
         await setRedisJson(
             `report_result:${userId}`,
-            { status: "waiting", position },
+            { status: "generating", startedAt: Date.now() },
             EFFECTIVE_REPORT_TTL
         );
 
-        console.log(`[ReportQueue] Enqueued ${userId} at position ${position}`);
+        // Start generation immediately
+        runReportJob(userId).catch(err => console.error(`[Report] Worker error ${userId}:`, err));
 
-        // Kick the worker before returning so Vercel does not drop the dispatch.
-        await processNextReport().catch(err => console.error("[ReportQueue] boot error:", err));
-
-        return res.json({ queued: true, position });
+        return res.json({ queued: true, position: 0 });
 
     } catch (err) {
-        console.error("[ReportQueue] Enqueue error:", err);
-        return res.status(500).json({ error: "Failed to queue report: " + err.message });
+        console.error("[Report] Generation error:", err);
+        return res.status(500).json({ error: "Failed to start report generation: " + err.message });
     }
 });
 
@@ -2021,80 +2042,32 @@ app.get("/report-status/:userId", isAuthenticated, async (req, res) => {
     }
 
     try {
-        await recoverStuckReports().catch(console.error);
-        await processNextReport().catch(console.error);
         const data = await getRedisJson(`report_result:${userId}`);
-        if (!data) {
-            const queuePos = await redis.lpos("report_queue", userId);
-            const processingPos = await redis.lpos("report_processing", userId);
-
-            if (queuePos !== null) {
-                await setRedisJson(
-                    `report_result:${userId}`,
-                    { status: "waiting", position: queuePos + 1 },
-                    EFFECTIVE_REPORT_TTL
-                );
-                return res.json({ status: "waiting", position: queuePos + 1 });
-            }
-
-            if (processingPos !== null) {
-                await ensureReportWorkerRunning(userId);
+        if (!data || data.status === "waiting") {
+            const formData = await getRedisJson(`report_form:${userId}`);
+            if (formData) {
                 await setRedisJson(
                     `report_result:${userId}`,
                     { status: "generating", startedAt: Date.now() },
                     EFFECTIVE_REPORT_TTL
                 );
+                await ensureReportWorkerRunning(userId);
                 return res.json({ status: "generating" });
             }
-
             return res.json({ status: "not_found" });
         }
 
-        if (data.status === "waiting") {
-            const queuePos = await redis.lpos("report_queue", userId);
-            const processingPos = await redis.lpos("report_processing", userId);
-
-            if (processingPos !== null) {
-                await ensureReportWorkerRunning(userId);
-                await setRedisJson(
-                    `report_result:${userId}`,
-                    { status: "generating", startedAt: data.startedAt || Date.now() },
-                    EFFECTIVE_REPORT_TTL
-                );
-                return res.json({ status: "generating" });
-            }
-
-            if (queuePos === null && processingPos === null) {
-                console.warn(`[ReportStatus] Re-queueing lost waiting job for ${userId}`);
-                await redis.rpush("report_queue", userId);
-                await refreshReportQueuePositions();
-                await processNextReport().catch(console.error);
-                const repaired = await getRedisJson(`report_result:${userId}`);
-                return res.json(repaired || { status: "waiting", position: 1 });
-            }
-
-            return res.json({
-                ...data,
-                position: queuePos === null ? data.position || 1 : queuePos + 1
-            });
-        }
-
         if (data.status === "generating") {
-            const processingPos = await redis.lpos("report_processing", userId);
-            if (processingPos === null) {
-                console.warn(`[ReportStatus] Generating job missing from processing for ${userId}, forcing recovery`);
-                await recoverStuckReports().catch(console.error);
-                await processNextReport().catch(console.error);
-            } else {
-                await ensureReportWorkerRunning(userId);
-            }
+            await ensureReportWorkerRunning(userId);
+            return res.json({ status: "generating" });
         }
 
-        // Don't send the base64 blob in the status poll — only send metadata
         if (data.status === "done") {
             return res.json({ status: "done", fileName: data.fileName });
         }
+
         return res.json(data);
+
     } catch (err) {
         console.error("[ReportStatus] error:", err);
         return res.status(500).json({ error: "Status check failed." });
@@ -2144,7 +2117,7 @@ app.get("/report-queue", isAuthenticated, (req, res) => {
 // COMPLEX ENGINEERING PROBLEMS — Queue-based generation with Docxtemplater
 // ══════════════════════════════════════════════════════════════════════════════
 
-const MAX_CEP_JOBS = 4;
+const MAX_CEP_JOBS = 999;
 const EFFECTIVE_CEP_TTL = 60 * 60;
 const CEP_TTL      = 600; // 10 min
 
@@ -2237,60 +2210,51 @@ async function recoverStuckCEP() {
     }
 }
 
+async function ensureCEPWorkerRunning(userId) {
+    const runnerKey = `cep_runner:${userId}`;
+    const heartbeat = parseInt(await redis.get(runnerKey) || "0", 10);
+    if (!isNaN(heartbeat) && heartbeat > 0 && Date.now() - heartbeat <= 90000) {
+        return false;
+    }
+    await redis.set(runnerKey, String(Date.now()), { ex: 120 });
+    console.log(`[CEP] Resuming CEP worker for ${userId}`);
+    runCEPJob(userId).catch(err => console.error(`[CEP] Worker error ${userId}:`, err));
+    return true;
+}
+
+async function ensureCaseStudyWorkerRunning(userId) {
+    const runnerKey = `case_study_runner:${userId}`;
+    const heartbeat = parseInt(await redis.get(runnerKey) || "0", 10);
+    if (!isNaN(heartbeat) && heartbeat > 0 && Date.now() - heartbeat <= 90000) {
+        return false;
+    }
+    await redis.set(runnerKey, String(Date.now()), { ex: 120 });
+    console.log(`[CaseStudy] Resuming Case Study worker for ${userId}`);
+    runCaseStudyJob(userId).catch(err => console.error(`[CaseStudy] Worker error ${userId}:`, err));
+    return true;
+}
+
 // ─── Enqueue CEP ─────────────────────────────────────────────────────────────
 app.post("/generate-cep", isAuthenticated, async (req, res) => {
     const userId = req.user.studentId;
     try {
-        // Don't double-queue
-        const existing = await getRedisJson(`cep_result:${userId}`);
-        if (existing) {
-            if (existing.status === "waiting" || existing.status === "generating") {
-                return res.json({ queued: true, position: existing.position || 1 });
-            }
-        }
-
-        const existingQueuePos = await redis.lpos("cep_queue", userId);
-        if (existingQueuePos !== null) {
-            await setRedisJson(
-                `cep_result:${userId}`,
-                { status: "waiting", position: existingQueuePos + 1 },
-                EFFECTIVE_CEP_TTL
-            );
-            return res.json({ queued: true, position: existingQueuePos + 1 });
-        }
-
-        const existingProcessingPos = await redis.lpos("cep_processing", userId);
-        if (existingProcessingPos !== null) {
-            await setRedisJson(
-                `cep_result:${userId}`,
-                { status: "generating", startedAt: Date.now() },
-                EFFECTIVE_CEP_TTL
-            );
-            return res.json({ queued: true, processing: true });
-        }
-
-        // Save form data to Redis
         await setRedisJson(`cep_form:${userId}`, { ...req.body, authenticatedUser: req.user }, EFFECTIVE_CEP_TTL);
 
-        await redis.lrem("cep_queue", 0, userId);
-        await redis.rpush("cep_queue", userId);
-
-        const queue    = await redis.lrange("cep_queue", 0, -1);
-        const position = queue.indexOf(userId) + 1;
-
+        // Mark as immediately generating
         await setRedisJson(
             `cep_result:${userId}`,
-            { status: "waiting", position },
+            { status: "generating", startedAt: Date.now() },
             EFFECTIVE_CEP_TTL
         );
 
-        console.log(`[CEP] Enqueued ${userId} at position ${position}`);
-        processNextCEP().catch(err => console.error("[CEP] boot error:", err));
-        return res.json({ queued: true, position });
+        // Start generation immediately
+        runCEPJob(userId).catch(err => console.error(`[CEP] Worker error ${userId}:`, err));
+
+        return res.json({ queued: true, position: 0 });
 
     } catch (err) {
-        console.error("[CEP] Enqueue error:", err);
-        return res.status(500).json({ error: "Failed to queue: " + err.message });
+        console.error("[CEP] Generation error:", err);
+        return res.status(500).json({ error: "Failed to start CEP generation: " + err.message });
     }
 });
 
@@ -2498,60 +2462,24 @@ app.get("/cep-status/:userId", isAuthenticated, async (req, res) => {
     }
 
     try {
-        recoverStuckCEP().catch(console.error);
-        processNextCEP().catch(console.error);
         const data = await getRedisJson(`cep_result:${userId}`);
-        if (!data) {
-            const queuePos = await redis.lpos("cep_queue", userId);
-            const processingPos = await redis.lpos("cep_processing", userId);
-
-            if (queuePos !== null) {
-                await setRedisJson(
-                    `cep_result:${userId}`,
-                    { status: "waiting", position: queuePos + 1 },
-                    EFFECTIVE_CEP_TTL
-                );
-                return res.json({ status: "waiting", position: queuePos + 1 });
-            }
-
-            if (processingPos !== null) {
+        if (!data || data.status === "waiting") {
+            const formData = await getRedisJson(`cep_form:${userId}`);
+            if (formData) {
                 await setRedisJson(
                     `cep_result:${userId}`,
                     { status: "generating", startedAt: Date.now() },
                     EFFECTIVE_CEP_TTL
                 );
+                await ensureCEPWorkerRunning(userId);
                 return res.json({ status: "generating" });
             }
-
             return res.json({ status: "not_found" });
         }
 
-        if (data.status === "waiting") {
-            const queuePos = await redis.lpos("cep_queue", userId);
-            const processingPos = await redis.lpos("cep_processing", userId);
-
-            if (queuePos === null && processingPos === null) {
-                console.warn(`[CEPStatus] Re-queueing lost waiting job for ${userId}`);
-                await redis.rpush("cep_queue", userId);
-                await refreshCepQueuePositions();
-                processNextCEP().catch(console.error);
-                const repaired = await getRedisJson(`cep_result:${userId}`);
-                return res.json(repaired || { status: "waiting", position: 1 });
-            }
-
-            return res.json({
-                ...data,
-                position: queuePos === null ? data.position || 1 : queuePos + 1
-            });
-        }
-
         if (data.status === "generating") {
-            const processingPos = await redis.lpos("cep_processing", userId);
-            if (processingPos === null) {
-                console.warn(`[CEPStatus] Generating job missing from processing for ${userId}, forcing recovery`);
-                recoverStuckCEP().catch(console.error);
-                processNextCEP().catch(console.error);
-            }
+            await ensureCEPWorkerRunning(userId);
+            return res.json({ status: "generating" });
         }
 
         if (data.status === "done") return res.json({ status: "done", fileName: data.fileName });
@@ -2601,7 +2529,7 @@ app.get("/cep-queue", isAuthenticated, (req, res) => {
 // CASE STUDY — Queue-based generation with Docxtemplater
 // ══════════════════════════════════════════════════════════════════════════════
 
-const MAX_CASE_STUDY_JOBS = 4;
+const MAX_CASE_STUDY_JOBS = 999;
 const EFFECTIVE_CASE_STUDY_TTL = 60 * 60;
 
 async function refreshCaseStudyQueuePositions() {
@@ -2697,56 +2625,23 @@ async function recoverStuckCaseStudy() {
 app.post("/generate-case-study", isAuthenticated, async (req, res) => {
     const userId = req.user.studentId;
     try {
-        // Don't double-queue
-        const existing = await getRedisJson(`case_study_result:${userId}`);
-        if (existing) {
-            if (existing.status === "waiting" || existing.status === "generating") {
-                return res.json({ queued: true, position: existing.position || 1 });
-            }
-        }
-
-        const existingQueuePos = await redis.lpos("case_study_queue", userId);
-        if (existingQueuePos !== null) {
-            await setRedisJson(
-                `case_study_result:${userId}`,
-                { status: "waiting", position: existingQueuePos + 1 },
-                EFFECTIVE_CASE_STUDY_TTL
-            );
-            return res.json({ queued: true, position: existingQueuePos + 1 });
-        }
-
-        const existingProcessingPos = await redis.lpos("case_study_processing", userId);
-        if (existingProcessingPos !== null) {
-            await setRedisJson(
-                `case_study_result:${userId}`,
-                { status: "generating", startedAt: Date.now() },
-                EFFECTIVE_CASE_STUDY_TTL
-            );
-            return res.json({ queued: true, processing: true });
-        }
-
-        // Save form data to Redis
         await setRedisJson(`case_study_form:${userId}`, { ...req.body, authenticatedUser: req.user }, EFFECTIVE_CASE_STUDY_TTL);
 
-        await redis.lrem("case_study_queue", 0, userId);
-        await redis.rpush("case_study_queue", userId);
-
-        const queue    = await redis.lrange("case_study_queue", 0, -1);
-        const position = queue.indexOf(userId) + 1;
-
+        // Mark as immediately generating
         await setRedisJson(
             `case_study_result:${userId}`,
-            { status: "waiting", position },
+            { status: "generating", startedAt: Date.now() },
             EFFECTIVE_CASE_STUDY_TTL
         );
 
-        console.log(`[CaseStudy] Enqueued ${userId} at position ${position}`);
-        processNextCaseStudy().catch(err => console.error("[CaseStudy] boot error:", err));
-        return res.json({ queued: true, position });
+        // Start generation immediately
+        runCaseStudyJob(userId).catch(err => console.error(`[CaseStudy] Worker error ${userId}:`, err));
+
+        return res.json({ queued: true, position: 0 });
 
     } catch (err) {
-        console.error("[CaseStudy] Enqueue error:", err);
-        return res.status(500).json({ error: "Failed to queue: " + err.message });
+        console.error("[CaseStudy] Generation error:", err);
+        return res.status(500).json({ error: "Failed to start Case Study generation: " + err.message });
     }
 });
 
@@ -3202,60 +3097,24 @@ app.get("/case-study-status/:userId", isAuthenticated, async (req, res) => {
     }
 
     try {
-        recoverStuckCaseStudy().catch(console.error);
-        processNextCaseStudy().catch(console.error);
         const data = await getRedisJson(`case_study_result:${userId}`);
-        if (!data) {
-            const queuePos = await redis.lpos("case_study_queue", userId);
-            const processingPos = await redis.lpos("case_study_processing", userId);
-
-            if (queuePos !== null) {
-                await setRedisJson(
-                    `case_study_result:${userId}`,
-                    { status: "waiting", position: queuePos + 1 },
-                    EFFECTIVE_CASE_STUDY_TTL
-                );
-                return res.json({ status: "waiting", position: queuePos + 1 });
-            }
-
-            if (processingPos !== null) {
+        if (!data || data.status === "waiting") {
+            const formData = await getRedisJson(`case_study_form:${userId}`);
+            if (formData) {
                 await setRedisJson(
                     `case_study_result:${userId}`,
                     { status: "generating", startedAt: Date.now() },
                     EFFECTIVE_CASE_STUDY_TTL
                 );
+                await ensureCaseStudyWorkerRunning(userId);
                 return res.json({ status: "generating" });
             }
-
             return res.json({ status: "not_found" });
         }
 
-        if (data.status === "waiting") {
-            const queuePos = await redis.lpos("case_study_queue", userId);
-            const processingPos = await redis.lpos("case_study_processing", userId);
-
-            if (queuePos === null && processingPos === null) {
-                console.warn(`[CaseStudyStatus] Re-queueing lost waiting job for ${userId}`);
-                await redis.rpush("case_study_queue", userId);
-                await refreshCaseStudyQueuePositions();
-                processNextCaseStudy().catch(console.error);
-                const repaired = await getRedisJson(`case_study_result:${userId}`);
-                return res.json(repaired || { status: "waiting", position: 1 });
-            }
-
-            return res.json({
-                ...data,
-                position: queuePos === null ? data.position || 1 : queuePos + 1
-            });
-        }
-
         if (data.status === "generating") {
-            const processingPos = await redis.lpos("case_study_processing", userId);
-            if (processingPos === null) {
-                console.warn(`[CaseStudyStatus] Generating job missing from processing for ${userId}, forcing recovery`);
-                recoverStuckCaseStudy().catch(console.error);
-                processNextCaseStudy().catch(console.error);
-            }
+            await ensureCaseStudyWorkerRunning(userId);
+            return res.json({ status: "generating" });
         }
 
         if (data.status === "done") return res.json({ status: "done", fileName: data.fileName });
